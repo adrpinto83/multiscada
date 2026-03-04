@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: 'Rajdhani', sans-serif;
+    background-color: #0a0e1a;
+    color: #f1f5f9;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #111827;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #374151;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #4b5563;
+  }
+}
+
+@layer utilities {
+  .font-mono {
+    font-family: 'Share Tech Mono', monospace;
+  }
+  .font-label {
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  /* Flow line animation */
+  @keyframes dashFlow {
+    0%   { stroke-dashoffset: 26; }
+    100% { stroke-dashoffset: 0; }
+  }
+
+  .animate-dash-flow {
+    animation: dashFlow 0.8s linear infinite;
+  }
+}
