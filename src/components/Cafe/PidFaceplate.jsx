@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
-import { usePlantStore } from '../../store/plantStore';
+import { useCafeStore } from '../../store/cafeStore';
 
 const RANGOS_CV = {
-  y1: { min: 0, max: 20,   unidad: 'm³/h',  ok: v => v >= 8 },
-  y2: { min: 0, max: 1000, unidad: 'μS/cm', ok: v => v <= 600 },
-  y3: { min: 0, max: 100,  unidad: '%',      ok: v => v >= 20 && v <= 85 },
-  y4: { min: 0, max: 14,   unidad: 'pH',     ok: v => v >= 6.5 && v <= 8.5 },
+  y1: { min: 0, max: 300,  unidad: '°C',  ok: v => v >= 160 && v <= 240 },
+  y2: { min: 0, max: 15,   unidad: '%',   ok: v => v <= 5 },
+  y3: { min: 0, max: 280,  unidad: '°C',  ok: v => v <= 200 },
+  y4: { min: 0, max: 100,  unidad: 'Ag',  ok: v => v >= 35 && v <= 80 },
 };
-const CV_KEYS = ['y1', 'y2', 'y3', 'y4'];
 
 function Medidor({ valor, min, max, unidad, ok }) {
   const pct = Math.max(0, Math.min(1, (valor - min) / (max - min)));
@@ -18,7 +17,7 @@ function Medidor({ valor, min, max, unidad, ok }) {
   const x1 = cx + r * Math.cos(aI), y1 = cy + r * Math.sin(aI);
   const x2 = cx + r * Math.cos(aF), y2 = cy + r * Math.sin(aF);
   const arcoGrande = pct * 270 > 180 ? 1 : 0;
-  const color = ok ? '#00d4ff' : '#ff4444';
+  const color = ok ? '#f59e0b' : '#ff4444';
 
   return (
     <svg viewBox="0 0 100 80" className="w-24 h-20">
@@ -40,18 +39,16 @@ function Medidor({ valor, min, max, unidad, ok }) {
 }
 
 export default function PidFaceplate() {
-  const faceplateActivo = usePlantStore(s => s.faceplateActivo);
-  const pids = usePlantStore(s => s.pids);
-  const cerrar = usePlantStore(s => s.cerrarFaceplate);
-  const setPidModo = usePlantStore(s => s.setPidModo);
-  const setPidSP = usePlantStore(s => s.setPidSP);
-  const setPidSalidaManual = usePlantStore(s => s.setPidSalidaManual);
-  const ajustarPid = usePlantStore(s => s.ajustarPid);
-  const cascadaActiva = usePlantStore(s => s.cascadaActiva);
-  const setCascada = usePlantStore(s => s.setCascada);
-  const emulacion = usePlantStore(s => s.emulacion);
-  const toggleEmulacion = usePlantStore(s => s.toggleEmulacion);
-  const setEmulacion = usePlantStore(s => s.setEmulacion);
+  const faceplateActivo = useCafeStore(s => s.faceplateActivo);
+  const pids = useCafeStore(s => s.pids);
+  const cerrar = useCafeStore(s => s.cerrarFaceplate);
+  const setPidModo = useCafeStore(s => s.setPidModo);
+  const setPidSP = useCafeStore(s => s.setPidSP);
+  const setPidSalidaManual = useCafeStore(s => s.setPidSalidaManual);
+  const ajustarPid = useCafeStore(s => s.ajustarPid);
+  const emulacion = useCafeStore(s => s.emulacion);
+  const toggleEmulacion = useCafeStore(s => s.toggleEmulacion);
+  const setEmulacion = useCafeStore(s => s.setEmulacion);
 
   const [editandoSP, setEditandoSP] = useState(false);
   const [inputSP, setInputSP] = useState('');
@@ -70,7 +67,7 @@ export default function PidFaceplate() {
 
   if (!pid) return null;
 
-  const cvKey = CV_KEYS[pid.id];
+  const cvKey = pid.cv;
   const mvKey = pid.mv;
   const rango = RANGOS_CV[cvKey];
   const esModoAuto = pid.modo === 'auto';
@@ -92,23 +89,17 @@ export default function PidFaceplate() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={cerrar}>
-      <div className="bg-navy-700 border border-cyan-scada/30 rounded-xl shadow-2xl w-84 overflow-hidden" style={{ width: 340 }} onClick={e => e.stopPropagation()}>
+      <div className="bg-navy-700 border border-amber-500/30 rounded-xl shadow-2xl w-84 overflow-hidden" style={{ width: 340 }} onClick={e => e.stopPropagation()}>
 
         {/* Cabecera */}
-        <div className="flex items-center justify-between px-4 py-3 bg-navy-800 border-b border-cyan-scada/20">
+        <div className="flex items-center justify-between px-4 py-3 bg-navy-800 border-b border-amber-500/20">
           <div>
-            <div className="font-mono text-sm text-cyan-scada font-bold">{pid.tag}</div>
+            <div className="font-mono text-sm text-amber-400 font-bold">{pid.tag}</div>
             <div className="font-label text-xs text-gray-400">{pid.etiqueta}</div>
           </div>
           <div className="flex items-center gap-2">
             {(emuCV.activa || emuMV.activa) && (
               <span className="text-xs font-label font-bold px-2 py-0.5 rounded bg-purple-500/20 border border-purple-500/40 text-purple-400">EMU</span>
-            )}
-            {pid.id === 0 && (
-              <button onClick={() => setCascada(!cascadaActiva)}
-                className={`text-xs font-label px-2 py-0.5 rounded border transition-colors ${
-                  cascadaActiva ? 'border-cyan-scada text-cyan-scada bg-cyan-scada/10' : 'border-gray-600 text-gray-400 hover:border-gray-400'
-                }`}>CASCADA</button>
             )}
             <button onClick={cerrar} className="text-gray-400 hover:text-white transition-colors">
               <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -121,7 +112,7 @@ export default function PidFaceplate() {
           {TABS.map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`flex-1 py-2 text-xs font-label font-bold uppercase tracking-wider transition-colors ${
-                tab === t ? 'text-cyan-scada border-b-2 border-cyan-scada' : 'text-gray-500 hover:text-gray-300'
+                tab === t ? 'text-amber-400 border-b-2 border-amber-400' : 'text-gray-500 hover:text-gray-300'
               }`}>{t}</button>
           ))}
         </div>
@@ -137,12 +128,12 @@ export default function PidFaceplate() {
             <div>
               <div className="flex justify-between text-xs font-label text-gray-400 mb-1">
                 <span>PV {emuCV.activa && <span className="text-purple-400">(EMU)</span>}</span>
-                <span className={`font-mono font-bold ${emuCV.activa ? 'text-purple-400' : ok ? 'text-cyan-scada' : 'text-red-400'}`}>
-                  {pvReal.toFixed(3)} {rango.unidad}
+                <span className={`font-mono font-bold ${emuCV.activa ? 'text-purple-400' : ok ? 'text-amber-400' : 'text-red-400'}`}>
+                  {pvReal.toFixed(pvReal < 10 ? 2 : 1)} {rango.unidad}
                 </span>
               </div>
               <div className="h-3 bg-navy-800 rounded-full relative overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${emuCV.activa ? 'bg-purple-500' : ok ? 'bg-cyan-scada' : 'bg-red-500'}`}
+                <div className={`h-full rounded-full transition-all ${emuCV.activa ? 'bg-purple-500' : ok ? 'bg-amber-500' : 'bg-red-500'}`}
                   style={{ width: `${pvPct}%` }} />
                 <div className="absolute top-0 h-full w-0.5 bg-yellow-400" style={{ left: `${spPct}%` }} />
               </div>
@@ -157,7 +148,7 @@ export default function PidFaceplate() {
                     onChange={e => setInputSP(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && confirmarSP()}
                     onBlur={confirmarSP}
-                    className="w-20 bg-navy-800 border border-cyan-scada/50 text-cyan-scada font-mono text-xs px-2 py-0.5 rounded text-right outline-none"
+                    className="w-20 bg-navy-800 border border-amber-500/50 text-amber-400 font-mono text-xs px-2 py-0.5 rounded text-right outline-none"
                   />
                   <span className="font-label text-xs text-gray-500">{rango.unidad}</span>
                 </div>
@@ -167,7 +158,7 @@ export default function PidFaceplate() {
                   className={`font-mono text-xs font-bold px-2 py-0.5 rounded border transition-colors ${
                     esModoAuto ? 'text-yellow-400 border-yellow-400/40 hover:bg-yellow-400/10 cursor-pointer' : 'text-gray-600 border-gray-700 cursor-not-allowed'
                   }`}>
-                  {pid.sp.toFixed(3)} {rango.unidad}
+                  {pid.sp.toFixed(pid.sp < 10 ? 2 : 1)} {rango.unidad}
                 </button>
               )}
             </div>
@@ -181,10 +172,10 @@ export default function PidFaceplate() {
               {!esModoAuto && !emuMV.activa ? (
                 <input type="range" min="0" max="100" step="0.5" value={mvLocal}
                   onChange={e => { setMvLocal(+e.target.value); setPidSalidaManual(pid.id, +e.target.value); }}
-                  className="w-full h-2 accent-cyan-scada" />
+                  className="w-full h-2 accent-amber-500" />
               ) : (
                 <div className="h-2 bg-navy-800 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all ${emuMV.activa ? 'bg-purple-500/50' : 'bg-white/25'}`}
+                  <div className={`h-full rounded-full transition-all ${emuMV.activa ? 'bg-purple-500/50' : 'bg-amber-500/50'}`}
                     style={{ width: `${pid.mvVal}%` }} />
                 </div>
               )}
@@ -216,15 +207,15 @@ export default function PidFaceplate() {
               <div key={k} className="space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="font-label text-xs text-gray-400">{etq}</span>
-                  <span className="font-mono text-xs text-cyan-scada">{sintonizacion[k].toFixed(2)}</span>
+                  <span className="font-mono text-xs text-amber-400">{sintonizacion[k].toFixed(2)}</span>
                 </div>
                 <input type="range" min={min} max={max} step={paso} value={sintonizacion[k]}
                   onChange={e => setSintonizacion(s => ({ ...s, [k]: +e.target.value }))}
-                  className="w-full h-2 accent-cyan-scada" />
+                  className="w-full h-2 accent-amber-500" />
               </div>
             ))}
             <button onClick={() => ajustarPid(pid.id, sintonizacion)}
-              className="w-full py-2 bg-cyan-scada/20 border border-cyan-scada/40 rounded-lg text-cyan-scada font-label font-bold text-sm hover:bg-cyan-scada/30 transition-colors">
+              className="w-full py-2 bg-amber-500/20 border border-amber-500/40 rounded-lg text-amber-400 font-label font-bold text-sm hover:bg-amber-500/30 transition-colors">
               Aplicar Sintonización
             </button>
             <div className="grid grid-cols-3 gap-1 pt-2 border-t border-gray-700/50">
@@ -257,19 +248,19 @@ export default function PidFaceplate() {
                 </button>
               </div>
               <div className="flex items-center justify-between text-xs font-label text-gray-500">
-                <span>Valor real: <span className="font-mono text-cyan-scada">{pvReal.toFixed(3)} {rango.unidad}</span></span>
-                <span>Emulado: <span className="font-mono text-purple-400">{emuCV.valor?.toFixed(3)} {rango.unidad}</span></span>
+                <span>Valor real: <span className="font-mono text-amber-400">{pvReal.toFixed(pvReal < 10 ? 2 : 1)} {rango.unidad}</span></span>
+                <span>Emulado: <span className="font-mono text-purple-400">{emuCV.valor?.toFixed(1)} {rango.unidad}</span></span>
               </div>
               <input type="range"
-                min={emuCV.min || rango.min} max={emuCV.max || rango.max} step={emuCV.paso || 0.1}
-                value={emuCV.valor || pvReal}
+                min={emuCV.min ?? rango.min} max={emuCV.max ?? rango.max} step={emuCV.paso ?? 0.5}
+                value={emuCV.valor ?? pvReal}
                 onChange={e => setEmulacion(cvKey, 'valor', +e.target.value)}
                 className={`w-full h-2 ${emuCV.activa ? 'accent-purple-500' : 'accent-gray-600'}`}
                 disabled={!emuCV.activa}
               />
               <div className="flex items-center gap-2">
                 <input type="number"
-                  value={emuCV.valor || pvReal}
+                  value={emuCV.valor ?? pvReal}
                   onChange={e => setEmulacion(cvKey, 'valor', +e.target.value)}
                   disabled={!emuCV.activa}
                   className="flex-1 bg-navy-900 border border-gray-700 text-purple-400 font-mono text-xs px-2 py-1 rounded outline-none disabled:opacity-40"

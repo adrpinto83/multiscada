@@ -1,207 +1,214 @@
 /**
- * 4x4 MIMO Process Model for Two-Pass RO Desalination Plant
+ * Modelo de Proceso MIMO 4×4 — Planta OI de Dos Pasos
  *
- * CVs (controlled variables):
- *   y1: Permeate flow (m³/h)     SP=12.0
- *   y2: Product conductivity (μS/cm)  SP=450
- *   y3: Product tank level (%)   SP=60
- *   y4: Product pH               SP=7.4
+ * Variables Controladas (CV):
+ *   y1: Flujo permeado (m³/h)         SP=12.0
+ *   y2: Conductividad producto (μS/cm) SP=450
+ *   y3: Nivel depósito producto (%)    SP=60
+ *   y4: pH producto                    SP=7.4
  *
- * MVs (manipulated variables):
- *   u1: HP Pump speed (0-100%)
- *   u2: Concentrate valve (0-100%)
- *   u3: Booster Pump Pass 2 (0-100%)
- *   u4: NaOH dosing flow (0-100%)
+ * Variables Manipuladas (MV):
+ *   u1: Velocidad bomba alta presión (0-100%)
+ *   u2: Apertura válvula concentrado (0-100%)
+ *   u3: Velocidad bomba impulsora paso 2 (0-100%)
+ *   u4: Caudal dosificación NaOH (0-100%)
  *
- * Operating point (steady state):
- *   u1=65, u2=40, u3=55, u4=30 → y1=12, y2=450, y3=60, y4=7.4
+ * Punto operación: u1=65, u2=40, u3=55, u4=30 → y1=12, y2=450, y3=60, y4=7.4
  */
 
 import { FOPDTElement, DisturbanceFOPDT } from './fopdt.js';
 
-// Engineering unit conversions from normalized deviation to engineering units
-export const CV_SETPOINTS = { y1: 12.0, y2: 450, y3: 60, y4: 7.4 };
-export const MV_OPERATING = { u1: 65, u2: 40, u3: 55, u4: 30 };
+export const SP_CVS    = { y1: 12.0, y2: 450, y3: 60, y4: 7.4 };
+export const OP_MVS    = { u1: 65,   u2: 40,  u3: 55, u4: 30  };
+export const DIST_NOM  = { d1: 35,   d2: 22  };
+export const DIST_RANGO = { d1: { min: 30, max: 45 }, d2: { min: 15, max: 35 } };
 
-// G matrix: G[i][j] = FOPDT(K, tau, theta) for CV[i] from MV[j]
-// G[cv][mv] = { K, tau, theta }
+// Matriz G [CV][MV]: { K, tau, theta }
 const G_PARAMS = [
-  // u1            u2             u3             u4
-  [{ K: 3.2,  tau: 5,  theta: 1 }, { K: -1.8, tau: 8,  theta: 3 }, { K: 0.9,  tau: 6,  theta: 2 }, { K: 0.1,  tau: 4,  theta: 1 }], // y1
-  [{ K: -4.5, tau: 12, theta: 2 }, { K: 5.1,  tau: 20, theta: 4 }, { K: -2.3, tau: 15, theta: 3 }, { K: 0.2,  tau: 5,  theta: 1 }], // y2
-  [{ K: 2.1,  tau: 3,  theta: 1 }, { K: -0.9, tau: 6,  theta: 2 }, { K: 0.7,  tau: 4,  theta: 2 }, { K: 0,    tau: 1,  theta: 0 }], // y3
-  [{ K: 0.3,  tau: 8,  theta: 2 }, { K: 0.1,  tau: 10, theta: 3 }, { K: 0.4,  tau: 7,  theta: 2 }, { K: 6.8,  tau: 3,  theta: 1 }], // y4
+//   u1                    u2                    u3                    u4
+  [{ K:  3.2, tau:  5, theta: 1 }, { K: -1.8, tau:  8, theta: 3 }, { K:  0.9, tau:  6, theta: 2 }, { K:  0.1, tau:  4, theta: 1 }], // y1
+  [{ K: -4.5, tau: 12, theta: 2 }, { K:  5.1, tau: 20, theta: 4 }, { K: -2.3, tau: 15, theta: 3 }, { K:  0.2, tau:  5, theta: 1 }], // y2
+  [{ K:  2.1, tau:  3, theta: 1 }, { K: -0.9, tau:  6, theta: 2 }, { K:  0.7, tau:  4, theta: 2 }, { K:  0.0, tau:  1, theta: 0 }], // y3
+  [{ K:  0.3, tau:  8, theta: 2 }, { K:  0.1, tau: 10, theta: 3 }, { K:  0.4, tau:  7, theta: 2 }, { K:  6.8, tau:  3, theta: 1 }], // y4
 ];
 
-// CV scaling: how much a unit change in normalized CV output maps to engineering units
-// These are approximate gains to keep deviations in engineering unit scale
-const CV_SCALE = {
-  y1: 1.0,   // m³/h per normalized unit
-  y2: 1.0,   // μS/cm per normalized unit
-  y3: 1.0,   // % per normalized unit
-  y4: 1.0,   // pH per normalized unit
+// Perturbaciones d1=salinidad, d2=temperatura
+const PARAMS_DIST = {
+  d1: { y1: { K: -0.3, tau: 10 }, y2: { K: 0.8,  tau: 15 } },
+  d2: { y1: { K:  0.5, tau:  8 }, y2: { K: -1.2, tau: 12 } },
 };
 
-// Disturbance models
-// d1 (salinity): affects y2 (K=0.8, τ=15) and y1 (K=-0.3, τ=10)
-// d2 (temp):     affects y1 (K=0.5, τ=8) and y2 (K=-1.2, τ=12)
-const DIST_PARAMS = {
-  d1: {
-    y1: { K: -0.3, tau: 10 },
-    y2: { K: 0.8,  tau: 15 },
-  },
-  d2: {
-    y1: { K: 0.5,  tau: 8  },
-    y2: { K: -1.2, tau: 12 },
-  },
-};
-
-export const DISTURBANCE_DEFAULTS = { d1: 35, d2: 22 };
-export const DISTURBANCE_NOMINAL = { d1: 35, d2: 22 };
-
-export class ProcessModel {
+export class ModeloProceso {
   constructor(dt = 0.5) {
     this.dt = dt;
 
-    // Create 4x4 FOPDT element grid
-    this.elements = G_PARAMS.map((row, i) =>
-      row.map((p, j) => {
-        const el = new FOPDTElement(p.K, p.tau, p.theta, dt);
-        return el;
-      })
+    // Red 4×4 de elementos FOPDT
+    this.elementos = G_PARAMS.map(fila =>
+      fila.map(p => new FOPDTElement(p.K, p.tau, p.theta, dt))
     );
 
-    // Disturbance FOPDT elements
-    this.distElements = {
-      d1_y1: new DisturbanceFOPDT(DIST_PARAMS.d1.y1.K, DIST_PARAMS.d1.y1.tau, dt),
-      d1_y2: new DisturbanceFOPDT(DIST_PARAMS.d1.y2.K, DIST_PARAMS.d1.y2.tau, dt),
-      d2_y1: new DisturbanceFOPDT(DIST_PARAMS.d2.y1.K, DIST_PARAMS.d2.y1.tau, dt),
-      d2_y2: new DisturbanceFOPDT(DIST_PARAMS.d2.y2.K, DIST_PARAMS.d2.y2.tau, dt),
+    // Elementos de perturbación
+    this.elemDisturbancia = {
+      d1_y1: new DisturbanceFOPDT(PARAMS_DIST.d1.y1.K, PARAMS_DIST.d1.y1.tau, dt),
+      d1_y2: new DisturbanceFOPDT(PARAMS_DIST.d1.y2.K, PARAMS_DIST.d1.y2.tau, dt),
+      d2_y1: new DisturbanceFOPDT(PARAMS_DIST.d2.y1.K, PARAMS_DIST.d2.y1.tau, dt),
+      d2_y2: new DisturbanceFOPDT(PARAMS_DIST.d2.y2.K, PARAMS_DIST.d2.y2.tau, dt),
     };
 
-    // Initialize at operating point (all deviations = 0)
-    this.initSteadyState();
+    // Factor de ensuciamiento de membrana (0=limpio, 1=ensuciado)
+    this.factorEnsuciamiento = 0.0;
+    // Velocidad de ensuciamiento: 0→100% en ~14 horas de operación continua
+    this.velocidadEnsuciamiento = 0.00002;
 
-    // Current CV values in engineering units
-    this.cvs = { ...CV_SETPOINTS };
+    // Variables calculadas
+    this.calculadas = {
+      ratioRecuperacion: 35.0,
+      rechazoSal: 99.1,
+      energiaEspecifica: 3.2,
+      presionDiferencial: 4.5,
+      factorEnsuciamiento: 0.0,
+      flujoAlimentacion: 34.3,
+      flujoConcentrado: 22.3,
+    };
 
-    // Disturbance state
-    this.disturbances = { ...DISTURBANCE_DEFAULTS };
+    this.cvs = { ...SP_CVS };
+    this.perturbaciones = { ...DIST_NOM };
   }
 
-  initSteadyState() {
-    // At operating point, deviations are 0, so initialize all elements at 0
-    this.elements.forEach(row => row.forEach(el => el.reset(0)));
-    Object.values(this.distElements).forEach(el => el.reset(0));
+  reiniciarEstacionario() {
+    this.elementos.forEach(fila => fila.forEach(el => el.reset(0)));
+    Object.values(this.elemDisturbancia).forEach(el => el.reset(0));
+  }
+
+  limpiarMembranas() {
+    this.factorEnsuciamiento = 0.0;
   }
 
   /**
-   * Step the process model
-   * @param {Object} mvs - { u1, u2, u3, u4 } in engineering units (0-100%)
-   * @param {Object} disturbances - { d1, d2 } in engineering units
-   * @returns {Object} - { y1, y2, y3, y4 } in engineering units
+   * Avanzar un paso de simulación
+   * @param {Object} mvs  { u1, u2, u3, u4 } en unidades reales
+   * @param {Object} dist { d1, d2 } en unidades reales
+   * @returns {{ cvs, calculadas }}
    */
-  step(mvs, disturbances) {
-    // Compute MV deviations from operating point
-    const uDev = [
-      mvs.u1 - MV_OPERATING.u1,
-      mvs.u2 - MV_OPERATING.u2,
-      mvs.u3 - MV_OPERATING.u3,
-      mvs.u4 - MV_OPERATING.u4,
+  paso(mvs, dist) {
+    // Desviaciones desde punto de operación
+    const uDes = [
+      mvs.u1 - OP_MVS.u1,
+      mvs.u2 - OP_MVS.u2,
+      mvs.u3 - OP_MVS.u3,
+      mvs.u4 - OP_MVS.u4,
     ];
+    const dDes1 = dist.d1 - DIST_NOM.d1;
+    const dDes2 = dist.d2 - DIST_NOM.d2;
 
-    // Compute disturbance deviations from nominal
-    const d1Dev = (disturbances.d1 - DISTURBANCE_NOMINAL.d1);
-    const d2Dev = (disturbances.d2 - DISTURBANCE_NOMINAL.d2);
-
-    // Step all FOPDT elements and sum contributions per CV
-    const cvDevs = [0, 0, 0, 0];
+    // Sumar contribuciones de cada MV en cada CV
+    const cvDes = [0, 0, 0, 0];
     for (let i = 0; i < 4; i++) {
       for (let j = 0; j < 4; j++) {
-        cvDevs[i] += this.elements[i][j].step(uDev[j]);
+        cvDes[i] += this.elementos[i][j].step(uDes[j]);
       }
     }
 
-    // Add disturbance contributions
-    const d1y1 = this.distElements.d1_y1.step(d1Dev);
-    const d1y2 = this.distElements.d1_y2.step(d1Dev);
-    const d2y1 = this.distElements.d2_y1.step(d2Dev);
-    const d2y2 = this.distElements.d2_y2.step(d2Dev);
+    // Contribuciones de perturbaciones
+    cvDes[0] += this.elemDisturbancia.d1_y1.step(dDes1) + this.elemDisturbancia.d2_y1.step(dDes2);
+    cvDes[1] += this.elemDisturbancia.d1_y2.step(dDes1) + this.elemDisturbancia.d2_y2.step(dDes2);
 
-    cvDevs[0] += d1y1 + d2y1;
-    cvDevs[1] += d1y2 + d2y2;
+    // Efecto de ensuciamiento sobre flujo y conductividad
+    const degradFlujo = -this.factorEnsuciamiento * 4.0;      // hasta -4 m³/h al 100%
+    const degradCond  =  this.factorEnsuciamiento * 120.0;    // hasta +120 μS/cm al 100%
+    cvDes[0] += degradFlujo;
+    cvDes[1] += degradCond;
 
-    // Add small process noise for realism
-    const noise = [
-      (Math.random() - 0.5) * 0.02,
-      (Math.random() - 0.5) * 0.5,
-      (Math.random() - 0.5) * 0.05,
-      (Math.random() - 0.5) * 0.002,
+    // Ruido de proceso realista
+    const ruido = [
+      (Math.random() - 0.5) * 0.025,
+      (Math.random() - 0.5) * 0.8,
+      (Math.random() - 0.5) * 0.06,
+      (Math.random() - 0.5) * 0.003,
     ];
 
-    // Convert deviations to engineering units (add setpoints)
     this.cvs = {
-      y1: Math.max(0, CV_SETPOINTS.y1 + cvDevs[0] + noise[0]),
-      y2: Math.max(0, CV_SETPOINTS.y2 + cvDevs[1] + noise[1]),
-      y3: Math.max(0, Math.min(100, CV_SETPOINTS.y3 + cvDevs[2] + noise[2])),
-      y4: Math.max(0, CV_SETPOINTS.y4 + cvDevs[3] + noise[3]),
+      y1: Math.max(0, SP_CVS.y1 + cvDes[0] + ruido[0]),
+      y2: Math.max(0, SP_CVS.y2 + cvDes[1] + ruido[1]),
+      y3: Math.max(0, Math.min(100, SP_CVS.y3 + cvDes[2] + ruido[2])),
+      y4: Math.max(0, SP_CVS.y4 + cvDes[3] + ruido[3]),
     };
 
-    return { ...this.cvs };
+    // Actualizar ensuciamiento (solo si bombas corriendo)
+    if (mvs.u1 > 10) {
+      this.factorEnsuciamiento = Math.min(1.0,
+        this.factorEnsuciamiento + this.velocidadEnsuciamiento * this.dt
+      );
+    }
+
+    // ── Variables calculadas ──────────────────────────────────────────────
+    const flujoAlim = Math.max(0.1, this.cvs.y1 / Math.max(0.1, (mvs.u2 / 100) * 0.7 + 0.3));
+    const flujoConc = Math.max(0, flujoAlim - this.cvs.y1);
+    const rr = (this.cvs.y1 / Math.max(0.1, flujoAlim)) * 100;
+
+    // Conductividad alimentación = f(salinidad)
+    const condAlim = dist.d1 * 1500;  // aprox: 35 g/L → ~52,500 μS/cm (usamos escala comprimida)
+    const condAlimEscalada = dist.d1 * 150;
+    const rechazoSal = condAlim > 0
+      ? Math.max(90, 100 - (this.cvs.y2 / condAlimEscalada) * 100)
+      : 99.0;
+
+    // Presión diferencial membrana (aumenta con ensuciamiento y flujo)
+    const presionBase = 2.0 + mvs.u1 * 0.08;
+    const presionFouling = this.factorEnsuciamiento * 8.0;
+    const presionDif = Math.max(0, presionBase + presionFouling + (Math.random() - 0.5) * 0.1);
+
+    // Consumo energético específico kWh/m³
+    const potenciaBomba = (mvs.u1 / 100) * 45 + (mvs.u3 / 100) * 15; // kW
+    const energiaEsp = this.cvs.y1 > 0.5 ? potenciaBomba / this.cvs.y1 : 0;
+
+    this.calculadas = {
+      ratioRecuperacion:   Math.min(100, Math.max(0, rr)),
+      rechazoSal:          Math.min(100, Math.max(0, rechazoSal)),
+      energiaEspecifica:   Math.min(20, Math.max(0, energiaEsp)),
+      presionDiferencial:  presionDif,
+      factorEnsuciamiento: this.factorEnsuciamiento * 100,
+      flujoAlimentacion:   flujoAlim,
+      flujoConcentrado:    flujoConc,
+    };
+
+    return { cvs: { ...this.cvs }, calculadas: { ...this.calculadas } };
   }
 }
 
 /**
- * Relative Gain Array (RGA) for the 4x4 process
- * Based on steady-state gains at nominal operating point
- * Bristol method: RGA = G .* (G^-1)^T (element-wise multiply)
+ * Cálculo de Matriz de Ganancias Relativas (RGA) — Método de Bristol
  */
-export function computeRGA() {
-  // Steady-state gain matrix (K values only)
-  const G = G_PARAMS.map(row => row.map(p => p.K));
-
-  // Compute G^-1 using simple 4x4 matrix inversion (numerical)
+export function calcularRGA() {
+  const G = G_PARAMS.map(fila => fila.map(p => p.K));
   try {
-    const Ginv = invertMatrix(G);
-    const rga = G.map((row, i) =>
-      row.map((gij, j) => gij * Ginv[j][i])
-    );
-    return rga;
+    const Ginv = invertirMatriz(G);
+    return G.map((fila, i) => fila.map((gij, j) => gij * Ginv[j][i]));
   } catch {
     return null;
   }
 }
 
-function invertMatrix(m) {
+function invertirMatriz(m) {
   const n = m.length;
-  const a = m.map(row => [...row]);
+  const a = m.map(f => [...f]);
   const inv = Array.from({ length: n }, (_, i) =>
     Array.from({ length: n }, (_, j) => (i === j ? 1 : 0))
   );
-
   for (let col = 0; col < n; col++) {
-    // Find pivot
-    let maxRow = col;
-    for (let row = col + 1; row < n; row++) {
-      if (Math.abs(a[row][col]) > Math.abs(a[maxRow][col])) maxRow = row;
+    let maxFila = col;
+    for (let fila = col + 1; fila < n; fila++) {
+      if (Math.abs(a[fila][col]) > Math.abs(a[maxFila][col])) maxFila = fila;
     }
-    [a[col], a[maxRow]] = [a[maxRow], a[col]];
-    [inv[col], inv[maxRow]] = [inv[maxRow], inv[col]];
-
-    const pivot = a[col][col];
-    if (Math.abs(pivot) < 1e-10) throw new Error('Singular matrix');
-
-    for (let j = 0; j < n; j++) {
-      a[col][j] /= pivot;
-      inv[col][j] /= pivot;
-    }
-    for (let row = 0; row < n; row++) {
-      if (row !== col) {
-        const factor = a[row][col];
-        for (let j = 0; j < n; j++) {
-          a[row][j] -= factor * a[col][j];
-          inv[row][j] -= factor * inv[col][j];
-        }
+    [a[col], a[maxFila]] = [a[maxFila], a[col]];
+    [inv[col], inv[maxFila]] = [inv[maxFila], inv[col]];
+    const pivote = a[col][col];
+    if (Math.abs(pivote) < 1e-10) throw new Error('Matriz singular');
+    for (let j = 0; j < n; j++) { a[col][j] /= pivote; inv[col][j] /= pivote; }
+    for (let fila = 0; fila < n; fila++) {
+      if (fila !== col) {
+        const f = a[fila][col];
+        for (let j = 0; j < n; j++) { a[fila][j] -= f * a[col][j]; inv[fila][j] -= f * inv[col][j]; }
       }
     }
   }

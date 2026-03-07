@@ -1,8 +1,8 @@
-import { usePlantStore } from '../../store/plantStore';
+import { useCafeStore } from '../../store/cafeStore';
 
 export default function AlarmBanner() {
-  const alarmas = usePlantStore(s => s.alarmas);
-  const reconocerTodas = usePlantStore(s => s.reconocerTodasAlarmas);
+  const alarmas = useCafeStore(s => s.alarmas);
+  const reconocerTodas = useCafeStore(s => s.reconocerTodasAlarmas);
 
   const activas = alarmas.filter(a => a.estado === 'ACTIVA');
   const criticas = activas.filter(a => a.prioridad === 'CRÍTICA');

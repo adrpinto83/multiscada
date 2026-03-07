@@ -6,24 +6,24 @@ import PidFaceplate from '../components/PID/PidFaceplate';
 import { usePlantStore } from '../store/plantStore';
 
 export default function Overview() {
-  const activeFaceplate = usePlantStore(s => s.activeFaceplate);
+  const faceplateActivo = usePlantStore(s => s.faceplateActivo);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Alarm banner */}
+      {/* Banner de alarmas */}
       <AlarmBanner />
 
-      {/* Main content: P&ID + mini trends */}
+      {/* Contenido principal: P&ID + tendencias mini */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* P&ID — main area */}
+        {/* P&ID */}
         <div className="flex-1 flex flex-col min-w-0">
           <Plant />
         </div>
 
-        {/* Right panel — mini trends */}
+        {/* Panel derecho — tendencias en vivo */}
         <div className="w-72 border-l border-cyan-scada/10 overflow-hidden flex flex-col bg-navy-800/50">
           <div className="px-3 py-2 border-b border-gray-700/50">
-            <span className="font-label text-xs text-gray-400 uppercase tracking-wider">Live Trends</span>
+            <span className="font-label text-xs text-gray-400 uppercase tracking-wider">Tendencias en Vivo</span>
           </div>
           <div className="flex-1 overflow-hidden">
             <TrendPanel compact={true} />
@@ -31,11 +31,11 @@ export default function Overview() {
         </div>
       </div>
 
-      {/* Disturbance panel (collapsible, bottom) */}
+      {/* Panel de perturbaciones (colapsable, inferior) */}
       <DisturbancePanel />
 
-      {/* PID Faceplate modal */}
-      {activeFaceplate !== null && <PidFaceplate />}
+      {/* Modal faceplate PID */}
+      {faceplateActivo !== null && <PidFaceplate />}
     </div>
   );
 }

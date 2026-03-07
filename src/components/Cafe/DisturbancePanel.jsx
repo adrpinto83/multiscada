@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { usePlantStore } from '../../store/plantStore';
-import { calcularRGA } from '../../engine/processModel';
+import { useCafeStore } from '../../store/cafeStore';
+import { calcularRGACafe } from '../../engine/cafeProcessModel';
 
-const rgaMatrix = calcularRGA();
+const rgaMatrix = calcularRGACafe();
 
 function PanelRGA() {
   if (!rgaMatrix) return <div className="text-xs text-gray-500">RGA no disponible</div>;
-  const etqCV = ['y1 Flujo', 'y2 Cond', 'y3 Nivel', 'y4 pH'];
-  const etqMV = ['u1 BAP', 'u2 VCV', 'u3 BImp', 'u4 NaOH'];
+  const etqCV = ['y1 TambTemp', 'y2 Humid', 'y3 GasTemp', 'y4 Color'];
+  const etqMV = ['u1 Quem', 'u2 Tambor', 'u3 Aire', 'u4 Enfr'];
   return (
     <div className="overflow-x-auto">
       <div className="text-xs font-label text-gray-400 mb-1 font-bold">Matriz RGA — Método de Bristol</div>
@@ -43,28 +43,31 @@ function PanelRGA() {
 }
 
 export default function DisturbancePanel() {
-  const perturbaciones = usePlantStore(s => s.perturbaciones);
-  const pendientes = usePlantStore(s => s.perturbacionesPendientes);
-  const setPendiente = usePlantStore(s => s.setPerturbacionPendiente);
-  const aplicar = usePlantStore(s => s.aplicarPerturbacion);
-  const restablecer = usePlantStore(s => s.restablecerPerturbaciones);
-  const panelAbierto = usePlantStore(s => s.panelPerturbacionAbierto);
-  const toggle = usePlantStore(s => s.togglePanelPerturbacion);
-  const calculadas = usePlantStore(s => s.calculadas);
-  const solicitarLimpiezaMembranas = usePlantStore(s => s.solicitarLimpiezaMembranas);
+  const perturbaciones = useCafeStore(s => s.perturbaciones);
+  const pendientes = useCafeStore(s => s.perturbacionesPendientes);
+  const setPendiente = useCafeStore(s => s.setPerturbacionPendiente);
+  const aplicar = useCafeStore(s => s.aplicarPerturbacion);
+  const restablecer = useCafeStore(s => s.restablecerPerturbaciones);
+  const panelAbierto = useCafeStore(s => s.panelPerturbacionAbierto);
+  const toggle = useCafeStore(s => s.togglePanelPerturbacion);
+  const calculadas = useCafeStore(s => s.calculadas);
 
   const [mostrarRGA, setMostrarRGA] = useState(false);
 
-  const perturbacionActiva = perturbaciones.d1 !== 35 || perturbaciones.d2 !== 22;
+  const perturbacionActiva = perturbaciones.d1 !== 11 || perturbaciones.d2 !== 20;
+
+  const COLORES_GRADO = {
+    VERDE: '#22c55e', LIGERO: '#a3e635', MEDIO: '#f59e0b', OSCURO: '#b45309', QUEMADO: '#7f1d1d',
+  };
 
   return (
-    <div className="bg-navy-800 border-t border-cyan-scada/20 shrink-0">
+    <div className="bg-navy-800 border-t border-amber-700/30 shrink-0">
       {/* Toggle cabecera */}
       <button onClick={toggle}
         className="w-full flex items-center justify-between px-4 py-2 hover:bg-white/3 transition-colors">
         <div className="flex items-center gap-2">
-          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-cyan-scada">
-            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-amber-500">
+            <path d="M13 2.05v2.02c3.95.49 7 3.85 7 7.93 0 3.21-1.81 6-4.72 7.28L13 17v5h5l-1.22-1.22C19.91 19.07 22 15.76 22 12c0-5.18-3.95-9.45-9-9.95zM11 2.05C5.95 2.55 2 6.82 2 12c0 3.76 2.09 7.07 5.22 8.78L6 22h5V2.05z"/>
           </svg>
           <span className="font-label text-sm font-bold text-white">Perturbaciones &amp; Análisis</span>
           {perturbacionActiva && (
@@ -73,15 +76,15 @@ export default function DisturbancePanel() {
           {/* Variables calculadas resumen */}
           <div className="flex items-center gap-3 ml-2">
             <span className="font-mono text-xs text-gray-500">
-              RR: <span className="text-cyan-scada">{calculadas.ratioRecuperacion.toFixed(1)}%</span>
+              Tasa: <span className="text-amber-400">{calculadas.tasaCalentamiento.toFixed(1)}°C/min</span>
             </span>
             <span className="font-mono text-xs text-gray-500">
-              RS: <span className="text-cyan-scada">{calculadas.rechazoSal.toFixed(1)}%</span>
-            </span>
-            <span className="font-mono text-xs text-gray-500">
-              Fouling: <span className={calculadas.factorEnsuciamiento > 30 ? 'text-red-400' : 'text-green-400'}>
-                {calculadas.factorEnsuciamiento.toFixed(1)}%
+              Energía: <span className={calculadas.consumoEnergia > 1200 ? 'text-red-400' : 'text-green-400'}>
+                {calculadas.consumoEnergia.toFixed(0)} kcal/kg
               </span>
+            </span>
+            <span className="font-mono text-xs text-gray-500">
+              Grado: <span style={{ color: COLORES_GRADO[calculadas.gradoTostado] || '#fff' }}>{calculadas.gradoTostado}</span>
             </span>
           </div>
         </div>
@@ -93,34 +96,34 @@ export default function DisturbancePanel() {
       {panelAbierto && (
         <div className="px-4 pb-4 pt-2">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Salinidad */}
+            {/* Humedad grano verde */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="font-label text-sm text-gray-300">Salinidad Agua Alimentación</label>
-                <span className="font-mono text-sm text-cyan-scada font-bold">{pendientes.d1.toFixed(1)} g/L</span>
+                <label className="font-label text-sm text-gray-300">Humedad Grano Verde</label>
+                <span className="font-mono text-sm text-amber-400 font-bold">{pendientes.d1.toFixed(1)} g/kg</span>
               </div>
-              <input type="range" min={30} max={45} step={0.1} value={pendientes.d1}
+              <input type="range" min={8} max={14} step={0.1} value={pendientes.d1}
                 onChange={e => setPendiente(+e.target.value, pendientes.d2)}
-                className="w-full h-2 accent-cyan-scada cursor-pointer" />
+                className="w-full h-2 accent-amber-500 cursor-pointer" />
               <div className="flex justify-between text-[10px] text-gray-600 font-mono">
-                <span>30 g/L</span><span className="text-gray-500">nominal: 35</span><span>45 g/L</span>
+                <span>8 g/kg</span><span className="text-gray-500">nominal: 11</span><span>14 g/kg</span>
               </div>
               <div className="text-xs text-gray-500 font-label">
-                Activa: <span className="text-yellow-400 font-mono">{perturbaciones.d1.toFixed(1)} g/L</span>
+                Activa: <span className="text-yellow-400 font-mono">{perturbaciones.d1.toFixed(1)} g/kg</span>
               </div>
             </div>
 
-            {/* Temperatura */}
+            {/* Temperatura ambiente */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="font-label text-sm text-gray-300">Temperatura Agua Alimentación</label>
-                <span className="font-mono text-sm text-cyan-scada font-bold">{pendientes.d2.toFixed(1)} °C</span>
+                <label className="font-label text-sm text-gray-300">Temperatura Ambiente</label>
+                <span className="font-mono text-sm text-amber-400 font-bold">{pendientes.d2.toFixed(1)} °C</span>
               </div>
-              <input type="range" min={15} max={35} step={0.5} value={pendientes.d2}
+              <input type="range" min={10} max={35} step={0.5} value={pendientes.d2}
                 onChange={e => setPendiente(pendientes.d1, +e.target.value)}
-                className="w-full h-2 accent-cyan-scada cursor-pointer" />
+                className="w-full h-2 accent-amber-500 cursor-pointer" />
               <div className="flex justify-between text-[10px] text-gray-600 font-mono">
-                <span>15°C</span><span className="text-gray-500">nominal: 22</span><span>35°C</span>
+                <span>10°C</span><span className="text-gray-500">nominal: 20</span><span>35°C</span>
               </div>
               <div className="text-xs text-gray-500 font-label">
                 Activa: <span className="text-yellow-400 font-mono">{perturbaciones.d2.toFixed(1)} °C</span>
@@ -130,7 +133,7 @@ export default function DisturbancePanel() {
             {/* Botones */}
             <div className="flex flex-col justify-center gap-2">
               <button onClick={aplicar}
-                className="py-2 px-4 bg-cyan-scada/20 border border-cyan-scada/50 text-cyan-scada font-label font-bold text-sm rounded-lg hover:bg-cyan-scada/30 transition-colors">
+                className="py-2 px-4 bg-amber-500/20 border border-amber-500/50 text-amber-400 font-label font-bold text-sm rounded-lg hover:bg-amber-500/30 transition-colors">
                 Aplicar Perturbación Escalón
               </button>
               <button onClick={restablecer}
@@ -144,33 +147,26 @@ export default function DisturbancePanel() {
             </div>
           </div>
 
-          {/* Ensuciamiento membranas */}
+          {/* Factor de desarrollo */}
           <div className="mt-3 p-3 bg-navy-900/40 rounded-lg border border-gray-700/50 flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-3 flex-1">
-              <span className="font-label text-xs text-gray-400">Factor Ensuciamiento Membrana:</span>
+              <span className="font-label text-xs text-gray-400">Factor de Desarrollo:</span>
               <div className="flex-1 h-3 bg-navy-800 rounded-full overflow-hidden max-w-48">
-                <div className={`h-full rounded-full transition-all duration-500 ${
-                  calculadas.factorEnsuciamiento > 50 ? 'bg-red-500' :
-                  calculadas.factorEnsuciamiento > 25 ? 'bg-yellow-500' : 'bg-green-500'
-                }`} style={{ width: `${calculadas.factorEnsuciamiento}%` }} />
+                <div className={`h-full rounded-full transition-all duration-500`}
+                  style={{
+                    width: `${calculadas.factorDesarrollo}%`,
+                    backgroundColor: COLORES_GRADO[calculadas.gradoTostado] || '#f59e0b',
+                  }} />
               </div>
-              <span className={`font-mono text-sm font-bold ${
-                calculadas.factorEnsuciamiento > 50 ? 'text-red-400' :
-                calculadas.factorEnsuciamiento > 25 ? 'text-yellow-400' : 'text-green-400'
-              }`}>{calculadas.factorEnsuciamiento.toFixed(1)}%</span>
+              <span className="font-mono text-sm font-bold" style={{ color: COLORES_GRADO[calculadas.gradoTostado] || '#f59e0b' }}>
+                {calculadas.factorDesarrollo.toFixed(1)}%
+              </span>
             </div>
             <div className="flex gap-3 text-xs font-mono text-gray-500">
-              <span>Q<sub>alim</sub>: <span className="text-white">{calculadas.flujoAlimentacion.toFixed(1)} m³/h</span></span>
-              <span>Q<sub>conc</sub>: <span className="text-red-400">{calculadas.flujoConcentrado.toFixed(1)} m³/h</span></span>
-              <span>ΔP: <span className={calculadas.presionDiferencial > 10 ? 'text-red-400' : 'text-white'}>{calculadas.presionDiferencial.toFixed(1)} bar</span></span>
+              <span>Grado: <span className="font-bold" style={{ color: COLORES_GRADO[calculadas.gradoTostado] }}>{calculadas.gradoTostado}</span></span>
+              <span>Tasa: <span className="text-white">{calculadas.tasaCalentamiento.toFixed(1)} °C/min</span></span>
+              <span>Energía: <span className={calculadas.consumoEnergia > 1200 ? 'text-red-400' : 'text-white'}>{calculadas.consumoEnergia.toFixed(0)} kcal/kg</span></span>
             </div>
-            <button
-              onClick={solicitarLimpiezaMembranas}
-              disabled={calculadas.factorEnsuciamiento < 1}
-              className="shrink-0 px-3 py-1.5 text-xs font-label font-bold rounded-lg border transition-colors disabled:opacity-30 disabled:cursor-not-allowed border-blue-500/50 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20"
-            >
-              Limpiar Membranas
-            </button>
           </div>
 
           {mostrarRGA && (
