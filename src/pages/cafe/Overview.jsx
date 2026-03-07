@@ -1,6 +1,7 @@
 import Plant from '../../components/Cafe/Plant';
 import AlarmBanner from '../../components/Cafe/AlarmBanner';
 import DisturbancePanel from '../../components/Cafe/DisturbancePanel';
+import BatchConfigPanel from '../../components/Cafe/BatchConfigPanel';
 import PidFaceplate from '../../components/Cafe/PidFaceplate';
 import { useCafeStore } from '../../store/cafeStore';
 import { usePlantStore } from '../../store/plantStore';
@@ -85,6 +86,8 @@ export default function CafeOverview() {
           </div>
         </div>
       </div>
+
+      <BatchConfigPanel />
 
       <DisturbancePanel />
 

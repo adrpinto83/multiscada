@@ -83,6 +83,28 @@ export const useCafeStore = create((set, get) => ({
   sidebarAbierto: true,
   panelPerturbacionAbierto: false,
 
+  // ── Estado del Lote ────────────────────────────────────────────────────────
+  lote: {
+    activo: false,
+    pausado: false,
+    emergenciaActiva: false,
+    numeroLote: null,
+    recetaId: 'arabica-medio',
+    pesoObjetivo: 250,
+    pesoProcesado: 0,
+    progresoLote: 0,
+    tiempoInicio: null,
+    tiempoEstimadoRestante: 0,
+    fase: 'configuracion',
+    tiempoPausa: 0,
+  },
+
+  // ── Configuración pendiente (antes de iniciar) ─────────────────────────────
+  configuracionLotePendiente: {
+    recetaId: 'arabica-medio',
+    pesoObjetivo: 250,
+  },
+
   // ── Acciones ───────────────────────────────────────────────────────────────
 
   /**
@@ -168,6 +190,12 @@ export const useCafeStore = create((set, get) => ({
       alarmas: alarmasActuales,
       historialAlarmas: nuevoHistorial.slice(0, 300),
     });
+
+    // Actualizar progreso del lote si está activo
+    const lote = get().lote;
+    if (lote.activo) {
+      get().actualizarProgresoLote();
+    }
   },
 
   // ── Acciones PID ───────────────────────────────────────────────────────────
@@ -217,6 +245,254 @@ export const useCafeStore = create((set, get) => ({
   cerrarFaceplate: () => set({ faceplateActivo: null }),
   toggleSidebar: () => set(s => ({ sidebarAbierto: !s.sidebarAbierto })),
   togglePanelPerturbacion: () => set(s => ({ panelPerturbacionAbierto: !s.panelPerturbacionAbierto })),
+
+  // ── Acciones Lote ──────────────────────────────────────────────────────────
+  /**
+   * Actualizar configuración pendiente del lote sin iniciarlo
+   */
+  setConfiguracionLote: (recetaId, pesoObjetivo) => {
+    const config = { recetaId, pesoObjetivo };
+    try {
+      const { guardarConfiguracionLote } = require('../utils/loteStorage');
+      guardarConfiguracionLote(config);
+    } catch (error) {
+      console.warn('No se pudo guardar configuración:', error);
+    }
+    set({ configuracionLotePendiente: config });
+  },
+
+  /**
+   * Iniciar nuevo lote con configuración pendiente
+   */
+  iniciarLote: () => {
+    const estado = get();
+    if (estado.lote.activo) {
+      console.warn('Ya hay un lote activo');
+      return;
+    }
+
+    const { configuracionLotePendiente } = estado;
+    const { generarNumeroDeLote } = require('../utils/loteStorage');
+    const numeroLote = generarNumeroDeLote();
+
+    const ahora = Date.now();
+    set({
+      lote: {
+        activo: true,
+        pausado: false,
+        emergenciaActiva: false,
+        numeroLote,
+        recetaId: configuracionLotePendiente.recetaId,
+        pesoObjetivo: configuracionLotePendiente.pesoObjetivo,
+        pesoProcesado: 0,
+        progresoLote: 0,
+        tiempoInicio: ahora,
+        tiempoEstimadoRestante: 0,
+        fase: 'precalentamiento',
+        tiempoPausa: 0,
+      },
+    });
+
+    // Aplicar parámetros de receta a los PIDs
+    get().aplicarParametrosReceta(configuracionLotePendiente.recetaId);
+  },
+
+  /**
+   * Detener lote actual (marcar como completado)
+   */
+  detenerLote: () => {
+    const estado = get();
+    if (!estado.lote.activo) return;
+
+    const loteCompletado = {
+      ...estado.lote,
+      activo: false,
+      fase: 'completado',
+      tiempoFin: Date.now(),
+    };
+
+    try {
+      const { agregarLoteAlHistorial } = require('../utils/loteStorage');
+      agregarLoteAlHistorial(loteCompletado);
+    } catch (error) {
+      console.warn('No se pudo guardar lote en historial:', error);
+    }
+
+    set({ lote: loteCompletado });
+  },
+
+  /**
+   * Resetear lote (volver a configuración)
+   */
+  resetearLote: () => {
+    set({
+      lote: {
+        activo: false,
+        pausado: false,
+        emergenciaActiva: false,
+        numeroLote: null,
+        recetaId: 'arabica-medio',
+        pesoObjetivo: 250,
+        pesoProcesado: 0,
+        progresoLote: 0,
+        tiempoInicio: null,
+        tiempoEstimadoRestante: 0,
+        fase: 'configuracion',
+        tiempoPausa: 0,
+      },
+    });
+  },
+
+  /**
+   * Actualizar progreso del lote (llamado automáticamente por scheduler)
+   * Calcula progreso ponderado: 60% desarrollo + 40% tiempo
+   * Se detiene si el lote está pausado o en emergencia
+   */
+  actualizarProgresoLote: () => {
+    const estado = get();
+    const { lote, calculadas } = estado;
+
+    if (!lote.activo || lote.pausado || lote.emergenciaActiva) return;
+
+    const ahora = Date.now();
+    const tiempoTranscurrido = (ahora - lote.tiempoInicio - lote.tiempoPausa) / 1000 / 60; // minutos
+
+    // Obtener receta
+    let duracionEstimada = 14; // Por defecto
+    try {
+      const { obtenerRecetaPorId } = require('../data/cafeRecipes');
+      const receta = obtenerRecetaPorId(lote.recetaId);
+      if (receta) duracionEstimada = receta.duracionEstimada;
+    } catch (error) {
+      console.warn('No se pudo obtener receta:', error);
+    }
+
+    // Componentes de progreso
+    const progresoDesarrollo = calculadas.factorDesarrollo; // 0-100%
+    const progresoTiempo = Math.min(100, (tiempoTranscurrido / duracionEstimada) * 100);
+
+    // Progreso final: 60% desarrollo + 40% tiempo
+    const progresoLote = Math.min(100, progresoDesarrollo * 0.6 + progresoTiempo * 0.4);
+
+    // Peso procesado proporcional
+    const pesoProcesado = (progresoLote / 100) * lote.pesoObjetivo;
+
+    // Tiempo restante estimado
+    const tiempoRestante = Math.max(0, duracionEstimada - tiempoTranscurrido);
+
+    // Determinar fase
+    let fase = 'tostado';
+    if (progresoLote < 10) fase = 'precalentamiento';
+    else if (progresoLote < 90) fase = 'tostado';
+    else if (progresoLote < 100) fase = 'enfriamiento';
+    else fase = 'completado';
+
+    set({
+      lote: {
+        ...lote,
+        progresoLote: Math.min(100, progresoLote),
+        pesoProcesado: Math.round(pesoProcesado * 10) / 10,
+        tiempoEstimadoRestante: Math.round(tiempoRestante),
+        fase,
+      },
+    });
+  },
+
+  /**
+   * Aplicar parámetros PID de una receta
+   */
+  aplicarParametrosReceta: (recetaId) => {
+    try {
+      const { obtenerRecetaPorId } = require('../data/cafeRecipes');
+      const receta = obtenerRecetaPorId(recetaId);
+      if (!receta) return;
+
+      const estado = get();
+      const pidsActualizados = estado.pids.map(pid => {
+        const params = receta.pidParams.find(p => p.id === pid.id);
+        if (params) {
+          return { ...pid, Kp: params.Kp, Ki: params.Ki, Kd: params.Kd };
+        }
+        return pid;
+      });
+
+      const nuevosSetpoints = receta.setpoints;
+      const pidsConSetpoints = pidsActualizados.map((pid, idx) => {
+        if (idx === 0) return { ...pid, sp: nuevosSetpoints.y1 }; // Temp tambor
+        if (idx === 1) return { ...pid, sp: nuevosSetpoints.y3 }; // Temp gases
+        if (idx === 2) return { ...pid, sp: nuevosSetpoints.y2 }; // Humedad
+        if (idx === 3) return { ...pid, sp: nuevosSetpoints.y4 }; // Color
+        return pid;
+      });
+
+      set({ pids: pidsConSetpoints });
+    } catch (error) {
+      console.warn('No se pudo aplicar parámetros de receta:', error);
+    }
+  },
+
+  /**
+   * Pausar lote en progreso
+   */
+  pausarLote: () => {
+    const estado = get();
+    if (estado.lote.activo && !estado.lote.pausado) {
+      set(s => ({
+        lote: { ...s.lote, pausado: true }
+      }));
+    }
+  },
+
+  /**
+   * Reanudar lote pausado
+   */
+  reanudarLote: () => {
+    const estado = get();
+    if (estado.lote.activo && estado.lote.pausado && !estado.lote.emergenciaActiva) {
+      const tiempoReanudar = Date.now();
+      const tiempoPausado = tiempoReanudar - (estado.lote.tiempoInicio + estado.lote.tiempoPausa);
+      set(s => ({
+        lote: {
+          ...s.lote,
+          pausado: false,
+          tiempoPausa: s.lote.tiempoPausa + tiempoPausado
+        }
+      }));
+    }
+  },
+
+  /**
+   * Parada de emergencia - detiene inmediatamente
+   */
+  paradasEmergencia: () => {
+    const estado = get();
+    if (estado.lote.activo) {
+      set(s => ({
+        lote: {
+          ...s.lote,
+          emergenciaActiva: true,
+          pausado: true,
+          fase: 'emergencia'
+        }
+      }));
+    }
+  },
+
+  /**
+   * Resetear emergencia y volver al estado anterior
+   */
+  resetearEmergencia: () => {
+    const estado = get();
+    if (estado.lote.emergenciaActiva) {
+      set(s => ({
+        lote: {
+          ...s.lote,
+          emergenciaActiva: false,
+          pausado: false
+        }
+      }));
+    }
+  },
 }));
 
 export { DEFINICIONES_ALARMA_CAFE };
