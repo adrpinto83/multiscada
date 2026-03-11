@@ -23,32 +23,54 @@ export default function BatchConfigPanel() {
   const [panelAbierto, setPanelAbierto] = useState(false);
   const [mostrarRGA, setMostrarRGA] = useState(false);
 
-  // State del store
-  const lote = useCafeStore(s => s.lote);
-  const configuracionPendiente = useCafeStore(s => s.configuracionLotePendiente);
-  const setConfiguracionLote = useCafeStore(s => s.setConfiguracionLote);
-  const iniciarLote = useCafeStore(s => s.iniciarLote);
-  const detenerLote = useCafeStore(s => s.detenerLote);
-  const resetearLote = useCafeStore(s => s.resetearLote);
-  const pausarLote = useCafeStore(s => s.pausarLote);
-  const reanudarLote = useCafeStore(s => s.reanudarLote);
-  const paradasEmergencia = useCafeStore(s => s.paradasEmergencia);
-  const resetearEmergencia = useCafeStore(s => s.resetearEmergencia);
-  const aplicarParametrosReceta = useCafeStore(s => s.aplicarParametrosReceta);
+  // State del store - Suscripción única para evitar problemas de re-renderización
+  const {
+    lote,
+    configuracionLotePendiente,
+    setConfiguracionLote,
+    iniciarLote,
+    detenerLote,
+    resetearLote,
+    pausarLote,
+    reanudarLote,
+    paradasEmergencia,
+    resetearEmergencia,
+    aplicarParametrosReceta,
+  } = useCafeStore(s => ({
+    lote: s.lote,
+    configuracionLotePendiente: s.configuracionLotePendiente,
+    setConfiguracionLote: s.setConfiguracionLote,
+    iniciarLote: s.iniciarLote,
+    detenerLote: s.detenerLote,
+    resetearLote: s.resetearLote,
+    pausarLote: s.pausarLote,
+    reanudarLote: s.reanudarLote,
+    paradasEmergencia: s.paradasEmergencia,
+    resetearEmergencia: s.resetearEmergencia,
+    aplicarParametrosReceta: s.aplicarParametrosReceta,
+  }));
 
   const recetas = obtenerRecetasDisponibles();
-  const recetaActual = obtenerRecetaPorId(lote.activo ? lote.recetaId : configuracionPendiente.recetaId);
+  const recetaActual = obtenerRecetaPorId(lote.activo ? lote.recetaId : configuracionLotePendiente.recetaId);
+
+  // Debug logging
+  console.log('BatchConfigPanel - lote state:', {
+    activo: lote.activo,
+    pausado: lote.pausado,
+    emergenciaActiva: lote.emergenciaActiva,
+    fase: lote.fase,
+  });
 
   const manejarSeleccionReceta = (recetaId) => {
     if (!lote.activo) {
-      setConfiguracionLote(recetaId, configuracionPendiente.pesoObjetivo);
+      setConfiguracionLote(recetaId, configuracionLotePendiente.pesoObjetivo);
     }
   };
 
   const manejarCambioPeso = (valor) => {
     const peso = Math.max(10, Math.min(500, valor));
     if (!lote.activo) {
-      setConfiguracionLote(configuracionPendiente.recetaId, peso);
+      setConfiguracionLote(configuracionLotePendiente.recetaId, peso);
     }
   };
 
@@ -103,7 +125,7 @@ export default function BatchConfigPanel() {
                 {recetaActual.nombre}
               </span>
               <span className="text-xs font-mono text-gray-500">
-                {configuracionPendiente.pesoObjetivo} kg
+                {configuracionLotePendiente.pesoObjetivo} kg
               </span>
             </div>
           )}
@@ -130,15 +152,15 @@ export default function BatchConfigPanel() {
                     onClick={() => manejarSeleccionReceta(receta.id)}
                     disabled={lote.activo}
                     className={`w-full text-left p-2 rounded-lg transition-all ${
-                      (lote.activo ? lote.recetaId : configuracionPendiente.recetaId) === receta.id
+                      (lote.activo ? lote.recetaId : configuracionLotePendiente.recetaId) === receta.id
                         ? 'border-2'
                         : 'border border-gray-700/30'
                     } ${lote.activo ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-600'}`}
                     style={{
                       borderColor:
-                        (lote.activo ? lote.recetaId : configuracionPendiente.recetaId) === receta.id ? receta.color : undefined,
+                        (lote.activo ? lote.recetaId : configuracionLotePendiente.recetaId) === receta.id ? receta.color : undefined,
                       backgroundColor:
-                        (lote.activo ? lote.recetaId : configuracionPendiente.recetaId) === receta.id
+                        (lote.activo ? lote.recetaId : configuracionLotePendiente.recetaId) === receta.id
                           ? `${receta.color}15`
                           : 'transparent',
                     }}
@@ -149,7 +171,7 @@ export default function BatchConfigPanel() {
                         style={{
                           borderColor: receta.color,
                           backgroundColor:
-                            (lote.activo ? lote.recetaId : configuracionPendiente.recetaId) === receta.id
+                            (lote.activo ? lote.recetaId : configuracionLotePendiente.recetaId) === receta.id
                               ? receta.color
                               : 'transparent',
                         }}
@@ -207,7 +229,7 @@ export default function BatchConfigPanel() {
                 <div className="flex items-center justify-between">
                   <label className="font-label text-xs text-gray-400">Peso Objetivo</label>
                   <span className="font-mono text-sm text-amber-400 font-bold">
-                    {lote.activo ? lote.pesoObjetivo : configuracionPendiente.pesoObjetivo} kg
+                    {lote.activo ? lote.pesoObjetivo : configuracionLotePendiente.pesoObjetivo} kg
                   </span>
                 </div>
                 <input
@@ -215,7 +237,7 @@ export default function BatchConfigPanel() {
                   min={10}
                   max={500}
                   step={5}
-                  value={lote.activo ? lote.pesoObjetivo : configuracionPendiente.pesoObjetivo}
+                  value={lote.activo ? lote.pesoObjetivo : configuracionLotePendiente.pesoObjetivo}
                   onChange={e => manejarCambioPeso(parseInt(e.target.value, 10))}
                   disabled={lote.activo}
                   className="w-full h-2 accent-amber-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
@@ -229,7 +251,7 @@ export default function BatchConfigPanel() {
                   type="number"
                   min={10}
                   max={500}
-                  value={lote.activo ? lote.pesoObjetivo : configuracionPendiente.pesoObjetivo}
+                  value={lote.activo ? lote.pesoObjetivo : configuracionLotePendiente.pesoObjetivo}
                   onChange={manejarInputPeso}
                   disabled={lote.activo}
                   className="w-full px-2 py-1 bg-navy-900 border border-gray-700 rounded text-sm text-white font-mono disabled:opacity-50"
@@ -271,7 +293,7 @@ export default function BatchConfigPanel() {
               {/* Botones de control */}
               <div className="space-y-2">
                 {/* Estado: Antes de iniciar */}
-                {!lote.activo && lote.fase === 'configuracion' && (
+                {!lote.activo && (
                   <button
                     onClick={iniciarLote}
                     className="w-full py-3 px-4 bg-green-500/20 border-2 border-green-500 text-green-400 font-label font-bold text-sm rounded-lg hover:bg-green-500/40 transition-all active:scale-95"
@@ -280,26 +302,17 @@ export default function BatchConfigPanel() {
                   </button>
                 )}
 
-                {/* Estado: Lote activo */}
+                {/* Estado: Lote activo - No emergencia */}
                 {lote.activo && !lote.emergenciaActiva && (
                   <>
-                    {/* Fila 1: Pausa/Reanuda */}
+                    {/* Fila 1: Pausa/Reanuda + Parada */}
                     <div className="flex gap-2">
-                      {!lote.pausado ? (
-                        <button
-                          onClick={pausarLote}
-                          className="flex-1 py-2 px-3 bg-yellow-500/20 border border-yellow-500/50 text-yellow-400 font-label font-bold text-xs rounded-lg hover:bg-yellow-500/30 transition-colors"
-                        >
-                          ⏸ PAUSA
-                        </button>
-                      ) : (
-                        <button
-                          onClick={reanudarLote}
-                          className="flex-1 py-2 px-3 bg-green-500/20 border border-green-500/50 text-green-400 font-label font-bold text-xs rounded-lg hover:bg-green-500/30 transition-colors"
-                        >
-                          ▶ REANUDAR
-                        </button>
-                      )}
+                      <button
+                        onClick={() => lote.pausado ? reanudarLote() : pausarLote()}
+                        className="flex-1 py-2 px-3 bg-yellow-500/20 border border-yellow-500/50 text-yellow-400 font-label font-bold text-xs rounded-lg hover:bg-yellow-500/30 transition-colors"
+                      >
+                        {lote.pausado ? '▶ REANUDAR' : '⏸ PAUSA'}
+                      </button>
                       <button
                         onClick={detenerLote}
                         className="flex-1 py-2 px-3 bg-orange-500/20 border border-orange-500/50 text-orange-400 font-label font-bold text-xs rounded-lg hover:bg-orange-500/30 transition-colors"
@@ -308,7 +321,7 @@ export default function BatchConfigPanel() {
                       </button>
                     </div>
 
-                    {/* Fila 2: Emergencia y Recargar PIDs */}
+                    {/* Fila 2: Emergencia + Recargar */}
                     <div className="flex gap-2">
                       <button
                         onClick={paradasEmergencia}
@@ -343,7 +356,7 @@ export default function BatchConfigPanel() {
                 )}
 
                 {/* Estado: Lote completado */}
-                {lote.activo === false && lote.fase === 'completado' && (
+                {!lote.activo && lote.fase === 'completado' && (
                   <button
                     onClick={resetearLote}
                     className="w-full py-3 px-4 bg-cyan-500/20 border-2 border-cyan-500 text-cyan-400 font-label font-bold text-sm rounded-lg hover:bg-cyan-500/40 transition-all active:scale-95"

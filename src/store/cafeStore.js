@@ -97,6 +97,7 @@ export const useCafeStore = create((set, get) => ({
     tiempoEstimadoRestante: 0,
     fase: 'configuracion',
     tiempoPausa: 0,
+    tiempoPausaInicio: null,
   },
 
   // ── Configuración pendiente (antes de iniciar) ─────────────────────────────
@@ -290,6 +291,7 @@ export const useCafeStore = create((set, get) => ({
         tiempoEstimadoRestante: 0,
         fase: 'precalentamiento',
         tiempoPausa: 0,
+        tiempoPausaInicio: null,
       },
     });
 
@@ -438,7 +440,11 @@ export const useCafeStore = create((set, get) => ({
     const estado = get();
     if (estado.lote.activo && !estado.lote.pausado) {
       set(s => ({
-        lote: { ...s.lote, pausado: true }
+        lote: {
+          ...s.lote,
+          pausado: true,
+          tiempoPausaInicio: Date.now()
+        }
       }));
     }
   },
@@ -450,12 +456,15 @@ export const useCafeStore = create((set, get) => ({
     const estado = get();
     if (estado.lote.activo && estado.lote.pausado && !estado.lote.emergenciaActiva) {
       const tiempoReanudar = Date.now();
-      const tiempoPausado = tiempoReanudar - (estado.lote.tiempoInicio + estado.lote.tiempoPausa);
+      const tiempoPausado = estado.lote.tiempoPausaInicio
+        ? tiempoReanudar - estado.lote.tiempoPausaInicio
+        : 0;
       set(s => ({
         lote: {
           ...s.lote,
           pausado: false,
-          tiempoPausa: s.lote.tiempoPausa + tiempoPausado
+          tiempoPausa: s.lote.tiempoPausa + tiempoPausado,
+          tiempoPausaInicio: null
         }
       }));
     }
