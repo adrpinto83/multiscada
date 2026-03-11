@@ -23,32 +23,18 @@ export default function BatchConfigPanel() {
   const [panelAbierto, setPanelAbierto] = useState(false);
   const [mostrarRGA, setMostrarRGA] = useState(false);
 
-  // State del store - Suscripción única para evitar problemas de re-renderización
-  const {
-    lote,
-    configuracionLotePendiente,
-    setConfiguracionLote,
-    iniciarLote,
-    detenerLote,
-    resetearLote,
-    pausarLote,
-    reanudarLote,
-    paradasEmergencia,
-    resetearEmergencia,
-    aplicarParametrosReceta,
-  } = useCafeStore(s => ({
-    lote: s.lote,
-    configuracionLotePendiente: s.configuracionLotePendiente,
-    setConfiguracionLote: s.setConfiguracionLote,
-    iniciarLote: s.iniciarLote,
-    detenerLote: s.detenerLote,
-    resetearLote: s.resetearLote,
-    pausarLote: s.pausarLote,
-    reanudarLote: s.reanudarLote,
-    paradasEmergencia: s.paradasEmergencia,
-    resetearEmergencia: s.resetearEmergencia,
-    aplicarParametrosReceta: s.aplicarParametrosReceta,
-  }));
+  // State del store - Suscripciones individuales para evitar infinite loops
+  const lote = useCafeStore(s => s.lote);
+  const configuracionLotePendiente = useCafeStore(s => s.configuracionLotePendiente);
+  const setConfiguracionLote = useCafeStore(s => s.setConfiguracionLote);
+  const iniciarLote = useCafeStore(s => s.iniciarLote);
+  const detenerLote = useCafeStore(s => s.detenerLote);
+  const resetearLote = useCafeStore(s => s.resetearLote);
+  const pausarLote = useCafeStore(s => s.pausarLote);
+  const reanudarLote = useCafeStore(s => s.reanudarLote);
+  const paradasEmergencia = useCafeStore(s => s.paradasEmergencia);
+  const resetearEmergencia = useCafeStore(s => s.resetearEmergencia);
+  const aplicarParametrosReceta = useCafeStore(s => s.aplicarParametrosReceta);
 
   const recetas = obtenerRecetasDisponibles();
   const recetaActual = obtenerRecetaPorId(lote.activo ? lote.recetaId : configuracionLotePendiente.recetaId);
